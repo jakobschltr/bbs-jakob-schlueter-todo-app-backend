@@ -1,0 +1,238 @@
+openapi: 3.0.1
+info:
+  title: Todo-Listen-Verwaltung
+  description: ""
+  contact:
+    email: wichmann@bbs-os-brinkstr.de
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  version: 0.1.0
+servers:
+- url: http://127.0.0.1:5000/
+tags:
+- name: Listenverwaltung
+  description: Todo-Listen anlegen, auflisten und löschen.
+- name: Eintragsverwaltung
+  description: Einträge einer Liste abrufen und anlegen sowie einzelne Einträge ändern oder löschen.
+paths:
+  /todo-list/{list_id}:
+    get:
+      tags:
+      - Eintragsverwaltung
+      summary: Get all items from list
+      operationId: getList
+      parameters:
+      - name: list_id
+        in: path
+        description: list id
+        required: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: List item returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoEntry'
+        "404":
+          description: Invalid list id
+          content: {}
+    delete:
+      tags:
+      - Listenverwaltung
+      summary: Delete a list
+      operationId: deleteList
+      parameters:
+      - name: list_id
+        in: path
+        description: list id–
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: List was deleted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "404":
+          description: Invalid list id
+          content: {}
+    post:
+      tags:
+      - Eintragsverwaltung
+      summary: Add entry to List
+      operationId: addEntry
+      parameters:
+      - name: list_id
+        in: path
+        description: list id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: create entry object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntryObject'
+      responses:
+        "201":
+          description: Entry added to List
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoEntry'
+        "404":
+          description: Invalid list id
+          content: {}
+        "500":
+          description: List could not be added
+          content: {}
+  /todo-list:
+    get:
+      tags:
+      - Listenverwaltung
+      summary: Get all lists
+      operationId: getLists
+      responses:
+        "200":
+          description: All todo lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TodoList'
+    post:
+      tags:
+      - Listenverwaltung
+      summary: Add new list
+      operationId: addList
+      requestBody:
+        description: list object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TodoList'
+        required: true
+      responses:
+        "201":
+          description: List added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoList'
+        "406":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoList'
+        "500":
+          description: List could not be added
+          content: {}
+      x-codegen-request-body-name: body
+  /entry/{entry_id}:
+    patch:
+      tags:
+      - Eintragsverwaltung
+      summary: Update an entry
+      operationId: updateEntry
+      parameters:
+      - name: entry_id
+        in: path
+        description: entry id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        description: update entry object
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EntryObject'
+      responses:
+        "200":
+          description: Entry updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoEntry'
+        "404":
+          description: Invalid entry id
+          content: {}
+        "406":
+          description: Invalid entry object
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EntryObject'
+        "500":
+          description: Entry could not be updated
+          content: {}
+    delete:
+      tags:
+      - Eintragsverwaltung
+      summary: Delete an entry
+      operationId: deleteEntry
+      parameters:
+      - name: entry_id
+        in: path
+        description: entry id
+        required: true
+        schema:
+          type: string
+      responses:
+        "204":
+          description: Entry deleted
+          content: {}
+        "404":
+          description: Invalid entry id
+          content: {}
+        "500":
+          description: Entry could not be deleted
+          content: {}
+components:
+  schemas:
+    Message:
+      type: object
+      properties:
+        message:
+          type: string
+    TodoList:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+    TodoEntry:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        description:
+          type: string
+        user_id:
+          type: string
+          format: uuid
+        list_id:
+          type: string
+          format: uuid
+    EntryObject:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
