@@ -110,14 +110,13 @@ def get_all_lists():
 # define endpoint for adding a new list
 @app.route('/todo-list', methods=['POST'])
 def add_new_list():
-    # make JSON from POST data (even if content type is not set correctly)
-    new_list = request.get_json(force=True) or {}
-    print('Got new list to be added: {}'.format(new_list))
-    name = new_list.get("name")
+    data = request.get_json(force=True) or {}
+    print('Got new list to be added: {}'.format(data))
+    name = data.get("name")
     if not name or not isinstance(name, str):
-        return jsonify({"id": new_list.get("id", ""), "name": new_list.get("name", "")}), 406
-    # create id for new list, save it and return the list with id
-    new_list['id'] = str(uuid.uuid4())
+        return jsonify({"name": data.get("name", "")}), 406
+    # ID nur serverseitig – keine vom Client übergebene id wird übernommen.
+    new_list = {"id": str(uuid.uuid4()), "name": name}
     todo_lists.append(new_list)
     return jsonify(new_list), 201
 

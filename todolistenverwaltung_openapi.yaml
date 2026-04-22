@@ -80,7 +80,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EntryObject'
+              $ref: '#/components/schemas/TodoEntryCreate'
       responses:
         "201":
           description: Entry added to List
@@ -119,7 +119,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TodoList'
+              $ref: '#/components/schemas/TodoListCreate'
         required: true
       responses:
         "201":
@@ -133,7 +133,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TodoList'
+                $ref: '#/components/schemas/TodoListCreate'
         "500":
           description: List could not be added
           content: {}
@@ -156,7 +156,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EntryObject'
+              $ref: '#/components/schemas/TodoEntryCreate'
       responses:
         "200":
           description: Entry updated
@@ -172,7 +172,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryObject'
+                $ref: '#/components/schemas/TodoEntry'
         "500":
           description: Entry could not be updated
           content: {}
@@ -205,12 +205,22 @@ components:
       properties:
         message:
           type: string
+    TodoListCreate:
+      type: object
+      description: Payload zum Anlegen einer Liste
+      required:
+        - name
+      properties:
+        name:
+          type: string
+          description: Name der neuen Liste.
     TodoList:
       type: object
       properties:
         id:
           type: string
           format: uuid
+          readOnly: true
         name:
           type: string
     TodoEntry:
@@ -219,6 +229,7 @@ components:
         id:
           type: string
           format: uuid
+          readOnly: true
         name:
           type: string
         description:
@@ -226,7 +237,8 @@ components:
         list_id:
           type: string
           format: uuid
-    EntryObject:
+          readOnly: true
+    TodoEntryCreate:
       type: object
       properties:
         name:
