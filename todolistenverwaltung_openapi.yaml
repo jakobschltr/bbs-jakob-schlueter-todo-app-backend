@@ -223,9 +223,6 @@ components:
           type: string
         description:
           type: string
-        user_id:
-          type: string
-          format: uuid
         list_id:
           type: string
           format: uuid
