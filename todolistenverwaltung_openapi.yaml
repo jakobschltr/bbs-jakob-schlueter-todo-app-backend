@@ -40,7 +40,16 @@ paths:
                   $ref: '#/components/schemas/TodoEntry'
         "404":
           description: Invalid list id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     delete:
       tags:
       - Listenverwaltung
@@ -49,7 +58,7 @@ paths:
       parameters:
       - name: list_id
         in: path
-        description: list id–
+        description: list id
         required: true
         schema:
           type: string
@@ -62,7 +71,16 @@ paths:
                 $ref: '#/components/schemas/Message'
         "404":
           description: Invalid list id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     post:
       tags:
       - Eintragsverwaltung
@@ -80,7 +98,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EntryObject'
+              $ref: '#/components/schemas/TodoEntryCreate'
       responses:
         "201":
           description: Entry added to List
@@ -90,10 +108,22 @@ paths:
                 $ref: '#/components/schemas/TodoEntry'
         "404":
           description: Invalid list id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "406":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoEntryCreate'
         "500":
-          description: List could not be added
-          content: {}
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
   /todo-list:
     get:
       tags:
@@ -109,6 +139,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/TodoList'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     post:
       tags:
       - Listenverwaltung
@@ -119,7 +155,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/TodoList'
+              $ref: '#/components/schemas/TodoListCreate'
         required: true
       responses:
         "201":
@@ -133,10 +169,13 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/TodoList'
+                $ref: '#/components/schemas/TodoListCreate'
         "500":
           description: List could not be added
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
       x-codegen-request-body-name: body
   /entry/{entry_id}:
     patch:
@@ -156,7 +195,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/EntryObject'
+              $ref: '#/components/schemas/TodoEntryCreate'
       responses:
         "200":
           description: Entry updated
@@ -166,16 +205,22 @@ paths:
                 $ref: '#/components/schemas/TodoEntry'
         "404":
           description: Invalid entry id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
         "406":
           description: Invalid entry object
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/EntryObject'
+                $ref: '#/components/schemas/TodoEntry'
         "500":
           description: Entry could not be updated
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     delete:
       tags:
       - Eintragsverwaltung
@@ -191,13 +236,22 @@ paths:
       responses:
         "204":
           description: Entry deleted
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
         "404":
           description: Invalid entry id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
         "500":
           description: Entry could not be deleted
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
 components:
   schemas:
     Message:
@@ -205,12 +259,22 @@ components:
       properties:
         message:
           type: string
+    TodoListCreate:
+      type: object
+      description: Payload zum Anlegen einer Liste
+      required:
+      - name
+      properties:
+        name:
+          type: string
+          description: Name der neuen Liste.
     TodoList:
       type: object
       properties:
         id:
           type: string
           format: uuid
+          readOnly: true
         name:
           type: string
     TodoEntry:
@@ -219,17 +283,16 @@ components:
         id:
           type: string
           format: uuid
+          readOnly: true
         name:
           type: string
         description:
           type: string
-        user_id:
-          type: string
-          format: uuid
         list_id:
           type: string
           format: uuid
-    EntryObject:
+          readOnly: true
+    TodoEntryCreate:
       type: object
       properties:
         name:
