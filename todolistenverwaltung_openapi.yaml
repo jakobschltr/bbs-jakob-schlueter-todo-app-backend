@@ -40,7 +40,16 @@ paths:
                   $ref: '#/components/schemas/TodoEntry'
         "404":
           description: Invalid list id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     delete:
       tags:
       - Listenverwaltung
@@ -49,7 +58,7 @@ paths:
       parameters:
       - name: list_id
         in: path
-        description: list id–
+        description: list id
         required: true
         schema:
           type: string
@@ -62,7 +71,16 @@ paths:
                 $ref: '#/components/schemas/Message'
         "404":
           description: Invalid list id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     post:
       tags:
       - Eintragsverwaltung
@@ -90,10 +108,22 @@ paths:
                 $ref: '#/components/schemas/TodoEntry'
         "404":
           description: Invalid list id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        "406":
+          description: Invalid request data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TodoEntryCreate'
         "500":
-          description: List could not be added
-          content: {}
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
   /todo-list:
     get:
       tags:
@@ -109,6 +139,12 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/TodoList'
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     post:
       tags:
       - Listenverwaltung
@@ -136,7 +172,10 @@ paths:
                 $ref: '#/components/schemas/TodoListCreate'
         "500":
           description: List could not be added
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
       x-codegen-request-body-name: body
   /entry/{entry_id}:
     patch:
@@ -166,7 +205,10 @@ paths:
                 $ref: '#/components/schemas/TodoEntry'
         "404":
           description: Invalid entry id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
         "406":
           description: Invalid entry object
           content:
@@ -175,7 +217,10 @@ paths:
                 $ref: '#/components/schemas/TodoEntry'
         "500":
           description: Entry could not be updated
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
     delete:
       tags:
       - Eintragsverwaltung
@@ -191,13 +236,22 @@ paths:
       responses:
         "204":
           description: Entry deleted
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
         "404":
           description: Invalid entry id
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
         "500":
           description: Entry could not be deleted
-          content: {}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
 components:
   schemas:
     Message:
@@ -209,7 +263,7 @@ components:
       type: object
       description: Payload zum Anlegen einer Liste
       required:
-        - name
+      - name
       properties:
         name:
           type: string

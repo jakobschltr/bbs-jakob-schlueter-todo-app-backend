@@ -9,7 +9,7 @@ Requirements:
 
 import uuid
 
-from flask import Flask, request, jsonify, abort
+from flask import Flask, request, jsonify
 
 
 # initialize Flask server
@@ -70,7 +70,7 @@ def apply_cors_header(response):
 def handle_list(list_id):
     list_item = _list_by_id(list_id)
     if not list_item:
-        abort(404)
+        return jsonify({'message': 'Invalid list id'}), 404
 
     if request.method == 'GET':
         print('Returning todo list...')
@@ -81,7 +81,7 @@ def handle_list(list_id):
         global todos
         todos = [t for t in todos if str(t['list_id']) != str(list_id)]
         todo_lists.remove(list_item)
-        return '', 204
+        return jsonify({'message': 'List was deleted'}), 204
 
     if request.method == 'POST':
         body = request.get_json(force=True) or {}
@@ -125,11 +125,11 @@ def add_new_list():
 def handle_entry(entry_id):
     entry = _entry_by_id(entry_id)
     if not entry:
-        abort(404)
+        return jsonify({'message': 'Invalid entry id'}), 404
 
     if request.method == 'DELETE':
         todos.remove(entry)
-        return '', 204
+        return jsonify({'message': 'Entry deleted'}), 204
 
     body = request.get_json(force=True) or {}
     if not isinstance(body, dict):
