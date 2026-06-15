@@ -24,8 +24,8 @@ einem unveränderten Raspberry Pi OS Lite (64-bit) Image.
 ## Links
 
 - **Frontend (live):** [todo-list-frontend-eight-omega.vercel.app](https://todo-list-frontend-eight-omega.vercel.app/)
-- **Frotend Repository:** [https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-frontend](https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-frontend)
-- **Backend Repository:** [github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend](https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend)
+- **Frontend Repository:** [https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-frontend](https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-frontend)
+- **Backend Repository:** [https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend](https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend)
 
 Das **Backend** ist eine Python/Flask-API für Listen und Todo-Einträge; die
 Schnittstelle ist in `todolistenverwaltung_openapi.yaml` beschrieben (OpenAPI). Das
@@ -190,7 +190,7 @@ sudo usermod -aG docker fernzugriff
 Per Git (Git ggf. zuerst mit `sudo apt install -y git` installieren):
 
 ```bash
-git clone https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app.git
+git clone https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend.git
 cd bbs-jakob-schlueter-todo-app
 ```
 
@@ -279,7 +279,7 @@ sudo docker ps                        # Container "todo-app" ist "Up"
 Den Endpunkt `/todo-list` abfragen, der alle Listen zurückgibt:
 
 ```bash
-curl http://localhost:5000/todo-list
+curl http://192.168.24.114:5000/todo-list
 ```
 
 Erwartete Ausgabe (die drei vordefinierten Beispiellisten aus `app.py`):
