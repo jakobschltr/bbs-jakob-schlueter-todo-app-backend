@@ -1,8 +1,8 @@
 FROM python:3.11-alpine
 
-WORKDIR /app
-
 RUN pip install flask==3.1.3
+
+WORKDIR /app
 
 COPY app.py /app
 
