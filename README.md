@@ -43,12 +43,35 @@ Todo-Sammlungen und Listen (Link siehe oben).
 
 ---
 
-## 1. Per SSH mit dem Pi verbinden
+## 1. SSH-Dienst einrichten und verbinden
 
-Die komplette Einrichtung wird über SSH durchgeführt. Voraussetzung dafür ist,
-dass der SSH-Dienst bereits auf dem Image aktiviert ist — beim Schreiben des
-Images mit dem **Raspberry Pi Imager** unter den erweiterten Einstellungen, oder
-durch eine leere Datei namens `ssh` in der Boot-Partition der SD-Karte.
+Damit die gesamte Einrichtung per SSH von einem anderen Rechner aus erfolgen
+kann, muss der SSH-Dienst auf dem Pi laufen.
+
+### 1.1 SSH aktivieren
+
+Die einfachste Methode: beim Schreiben des Images mit dem **Raspberry Pi Imager**
+unter den erweiterten Einstellungen SSH direkt aktivieren.
+
+Zur Sicherheit lässt sich SSH auch manuell installieren und starten (direkt am
+Pi oder über eine bereits bestehende Verbindung):
+
+```bash
+sudo apt update
+sudo apt install -y openssh-server
+sudo systemctl enable ssh
+sudo systemctl start ssh
+```
+
+Status prüfen:
+
+```bash
+sudo systemctl status ssh
+```
+
+> Erwartete Ausgabe enthält `enabled` und `active (running)`.
+
+### 1.2 Per SSH verbinden
 
 Zuerst die aktuelle (per DHCP vergebene) IP des Pi ermitteln — z. B. über die
 Geräteliste des Routers oder direkt am Pi mit `hostname -I`. Anschließend mit dem
@@ -231,16 +254,6 @@ sudo usermod -aG sudo fernzugriff
 
 ## 4. SSH-Zugang absichern
 
-Der SSH-Dienst soll Neustarts überstehen und ausschließlich dem Benutzer
-`fernzugriff` die Anmeldung erlauben.
-
-Dienst dauerhaft aktivieren und starten:
-
-```bash
-sudo systemctl enable ssh
-sudo systemctl start ssh
-```
-
 Den Zugang auf `fernzugriff` beschränken, damit sich kein anderer Benutzer
 (z. B. `willi` oder `pi`) von außen anmelden kann. Dazu folgende Zeile ans Ende
 von `/etc/ssh/sshd_config` anfügen:
@@ -336,8 +349,9 @@ scp app.py Dockerfile fernzugriff@192.168.24.114:~/todo-app/
 
 > **Hinweis:** Schlägt `git clone` mit einem SSL-/Zertifikatsfehler fehl, ist
 > meist die Systemzeit falsch (siehe Schritt 2.3).
-> **Hinweis** bei Kopie über `scp` und einrichtung des Caddy Reverse Proxy
-> muss die Cadyfile auch übertragen werden oder auf dem System erstellen werden
+> **Hinweis** bei Kopie über `scp` und Einrichtung des Caddy Reverse Proxy
+> muss die Caddyfile auch übertragen werden oder auf dem System erstellt werden.
+
 ---
 
 ## 7. Container-Image bauen
@@ -361,11 +375,12 @@ sudo docker run -p 5000:5000 -d --restart unless-stopped --name todo-app webapp
 
 Erläuterung der Optionen:
 
-- `-p 5000:5000` – leitet Port 5000 des Containers auf Port 5000 des Hosts um
-- `-d` – startet den Container im Hintergrund (detached)
-- `--restart unless-stopped` – startet den Container nach einem Neustart des
-Systems automatisch wieder (Persistenz-Anforderung)
-- `--name todo-app` – fester Name für die spätere Verwaltung
+| Option | Bedeutung |
+|--------|-----------|
+| `-p 5000:5000` | Leitet Port 5000 des Containers auf Port 5000 des Hosts um |
+| `-d` | Startet den Container im Hintergrund (detached) |
+| `--restart unless-stopped` | Startet den Container nach einem Systemneustart automatisch wieder |
+| `--name todo-app` | Fester Name für die spätere Verwaltung |
 
 Laufende Container anzeigen:
 
@@ -517,6 +532,18 @@ To                         Action      From
 5000/tcp                   ALLOW IN    Anywhere
 ```
 
+### Firewall testen
+
+Prüfen ob die API noch erreichbar ist — kommt eine Antwort, ist Port 5000 korrekt
+freigegeben:
+
+```bash
+curl http://192.168.24.114:5000/todo-list
+```
+
+Erwartete Ausgabe: die Liste der Todo-Einträge als JSON (wie im Funktionstest in
+Schritt 9).
+
 > **Docker und ufw:** Docker schreibt eigene `iptables`-Regeln und umgeht damit
 > ufw — ein per Docker veröffentlichter Port (hier `5000`) ist von außen
 > erreichbar, auch wenn ufw ihn nicht erlaubt. Soll ufw die volle Kontrolle
@@ -560,12 +587,24 @@ sudo docker run -d --name caddy --network host --restart unless-stopped \
   caddy
 ```
 
-Test (lokal und vom Netzwerk):
+### Reverse-Proxy testen
+
+**1. API über Port 80 erreichbar (über Caddy):**
 
 ```bash
-curl http://localhost/todo-list
 curl http://192.168.24.114/todo-list
 ```
+
+Erwartete Ausgabe: Todo-Listen als JSON — Caddy leitet die Anfrage intern an Port 5000 weiter.
+
+**2. Port 5000 von außen nicht mehr erreichbar:**
+
+```bash
+curl --max-time 5 http://192.168.24.114:5000/todo-list
+```
+
+Erwartete Ausgabe: `curl: (28) Connection timed out` — Port 5000 lauscht nur noch
+auf `127.0.0.1` und ist von außen nicht erreichbar.
 
 In der Firewall (Zusatzaufgabe 1) muss Port `80` freigegeben sein. Da die App nun
 nur noch lokal lauscht, ist die Freigabe von Port `5000` nicht mehr nötig.
