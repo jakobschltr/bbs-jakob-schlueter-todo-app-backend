@@ -2,7 +2,8 @@
 
 REST-API für Todo-Listen (Python/Flask), deployed als Docker-Container auf einem
 Raspberry Pi. Diese Anleitung beschreibt die komplette Einrichtung ausgehend von
-einem unveränderten Raspberry Pi OS Lite (64-bit) Image.
+einem unveränderten Raspberry Pi OS Lite (64-bit) Image. Die gesamte Einrichtung
+erfolgt **per SSH** von einem anderen Rechner aus (siehe Schritt 1).
 
 ## Repository-Inhalt
 
@@ -17,7 +18,7 @@ einem unveränderten Raspberry Pi OS Lite (64-bit) Image.
 > **Hinweis zu den IP-Adressen:** Alle Adressen in dieser Anleitung sind an
 > unser Netzwerk angepasst. Wer die Anleitung nachvollzieht, muss eine **eigene,
 > freie IP-Adresse** im jeweiligen Subnetz wählen sowie Gateway und DNS des
-> eigenen Netzwerks eintragen (siehe Schritt 1).
+> eigenen Netzwerks eintragen (siehe Schritt 2).
 
 ---
 
@@ -41,12 +42,51 @@ Todo-Sammlungen und Listen (Link siehe oben).
 
 ---
 
-## 1. Statische IP-Adresse konfigurieren
+## 1. Per SSH mit dem Pi verbinden
+
+Die komplette Einrichtung wird über SSH durchgeführt. Voraussetzung dafür ist,
+dass der SSH-Dienst bereits auf dem Image aktiviert ist — beim Schreiben des
+Images mit dem **Raspberry Pi Imager** unter den erweiterten Einstellungen, oder
+durch eine leere Datei namens `ssh` in der Boot-Partition der SD-Karte.
+
+Zuerst die aktuelle (per DHCP vergebene) IP des Pi ermitteln — z. B. über die
+Geräteliste des Routers oder direkt am Pi mit `hostname -I`. Anschließend mit dem
+Standardbenutzer `pi` verbinden:
+
+```bash
+ssh pi@192.168.24.146
+```
+
+Beim allerersten Verbinden fragt SSH, ob der Host-Schlüssel akzeptiert werden
+soll — mit `yes` bestätigen. Der Schlüssel wird dann in `~/.ssh/known_hosts`
+gespeichert. Danach das Passwort des `pi`-Benutzers eingeben.
+
+> **Mögliches Problem — „REMOTE HOST IDENTIFICATION HAS CHANGED!":** Wurde unter
+> derselben IP zuvor ein anderer Raspberry Pi betrieben (anderer Host-Schlüssel),
+> verweigert SSH die Verbindung als Schutz vor Man-in-the-Middle-Angriffen. Den
+> alten Schlüssel für die IP entfernen und erneut verbinden:
+>
+> ```bash
+> ssh-keygen -R 192.168.24.146
+> ssh pi@192.168.24.146
+> ```
+
+> **Hinweis zur Locale-Warnung:** Meldungen wie
+> `setlocale: LC_CTYPE: cannot change locale (UTF-8)` beim Login sind harmlos und
+> beeinträchtigen die Einrichtung nicht. Sie entstehen, weil der lokale Rechner
+> seine Spracheinstellung mitsendet, die der Pi nicht kennt.
+
+Sobald die Verbindung steht, werden alle folgenden Schritte in dieser
+SSH-Sitzung auf dem Pi ausgeführt.
+
+---
+
+## 2. Statische IP-Adresse konfigurieren
 
 Raspberry Pi OS (Bookworm) nutzt NetworkManager. Die Konfiguration erfolgt mit
 `nmcli` und ist automatisch persistent.
 
-### 1.1 Gateway und DNS ermitteln
+### 2.1 Gateway und DNS ermitteln
 
 Solange der Pi noch per DHCP verbunden ist, lassen sich Gateway und DNS-Server
 des Netzwerks direkt auslesen.
@@ -79,7 +119,7 @@ nmcli dev show eth0
 > ist **`192.168.24.0/24`**. In einem anderen Netzwerk liefern die obigen
 > Befehle entsprechend andere Adressen.
 
-### 1.2 Statische IP setzen
+### 2.2 Statische IP setzen
 
 Zuerst den Namen der aktiven Verbindung ermitteln:
 
@@ -101,10 +141,14 @@ sudo nmcli connection down "netplan-eth0"
 sudo nmcli connection up "netplan-eth0"
 ```
 
-> Hinweis: Bei aktiver SSH-Verbindung bricht die Sitzung an dieser Stelle ab,
-> da sich die IP-Adresse ändert. Danach unter der neuen Adresse neu verbinden.
+> **Hinweis:** Da sich die IP-Adresse ändert, **bricht die aktuelle SSH-Sitzung
+> hier ab**. Anschließend unter der neuen, statischen IP neu verbinden:
+>
+> ```bash
+> ssh pi@192.168.24.114
+> ```
 
-### 1.3 Systemzeit setzen (wichtig beim Raspberry Pi 3)
+### 2.3 Systemzeit setzen (wichtig beim Raspberry Pi 3)
 
 Der Raspberry Pi 3 besitzt **keine batteriegepufferte Echtzeituhr (RTC)** — in
 `timedatectl` erscheint `RTC time: n/a`. Nach dem Einschalten startet er daher mit
@@ -159,7 +203,7 @@ date
 
 ---
 
-## 2. Benutzer anlegen
+## 3. Benutzer anlegen
 
 ### Benutzer `willi` (ohne Administratorrechte)
 
@@ -185,18 +229,21 @@ sudo usermod -aG sudo fernzugriff
 
 ---
 
-## 3. SSH-Dienst einrichten
+## 4. SSH-Zugang absichern
 
-SSH-Dienst dauerhaft aktivieren (überlebt Neustarts) und starten:
+Der SSH-Dienst soll Neustarts überstehen und ausschließlich dem Benutzer
+`fernzugriff` die Anmeldung erlauben.
+
+Dienst dauerhaft aktivieren und starten:
 
 ```bash
 sudo systemctl enable ssh
 sudo systemctl start ssh
 ```
 
-Den SSH-Zugang auf den Benutzer `fernzugriff` beschränken, damit sich kein
-anderer Benutzer (z. B. `willi`) von außen anmelden kann. Dazu folgende Zeile
-ans Ende von `/etc/ssh/sshd_config` anfügen:
+Den Zugang auf `fernzugriff` beschränken, damit sich kein anderer Benutzer
+(z. B. `willi` oder `pi`) von außen anmelden kann. Dazu folgende Zeile ans Ende
+von `/etc/ssh/sshd_config` anfügen:
 
 ```bash
 echo "AllowUsers fernzugriff" | sudo tee -a /etc/ssh/sshd_config
@@ -206,17 +253,19 @@ sudo systemctl reload ssh
 - "tee" -> Weitergabe der Eingabe an eine Datei
 - "-a" -> Anhängen der Eingabe an die Datei und nicht überschreiben
 
-Verbindungstest von einem anderen Rechner im Netzwerk:
+Ab jetzt ist die Administration nur noch über `fernzugriff` möglich. Die aktuelle
+`pi`-Sitzung beenden und unter dem neuen Benutzer neu verbinden:
 
 ```bash
+exit
 ssh fernzugriff@192.168.24.114
 ```
 
 ---
 
-## 4. Docker installieren
+## 5. Docker installieren
 
-> **Vor der Installation:** Systemzeit prüfen (siehe Schritt 1.3) — bei falscher
+> **Vor der Installation:** Systemzeit prüfen (siehe Schritt 2.3) — bei falscher
 > Uhr scheitert `apt update` an der Signaturprüfung (`Not live until …`) und es
 > lassen sich keine Pakete installieren.
 
@@ -241,15 +290,19 @@ sudo docker run hello-world
 ```
 
 Optional: Benutzer zur `docker`-Gruppe hinzufügen, um `docker` ohne `sudo`
-auszuführen (wirksam nach erneutem Login):
+auszuführen:
 
 ```bash
 sudo usermod -aG docker fernzugriff
 ```
 
+> **Hinweis:** Die Gruppenmitgliedschaft wird erst nach einer **neuen
+> SSH-Sitzung** wirksam (einmal `exit`, dann neu verbinden). Bis dahin liefert
+> `docker ps` „permission denied" und die Befehle benötigen weiterhin `sudo`.
+
 ---
 
-## 5. Projektdateien auf den Server übertragen
+## 6. Projektdateien auf den Server übertragen
 
 Zuerst prüfen, ob Git bereits installiert ist:
 
@@ -269,7 +322,7 @@ Anschließend das Backend-Repository klonen:
 
 ```bash
 git clone https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend.git
-cd bbs-jakob-schlueter-todo-app
+cd bbs-jakob-schlueter-todo-app-backend
 ```
 
 Alternativ per `scp` vom eigenen Rechner aus (ohne Git):
@@ -279,11 +332,11 @@ scp app.py Dockerfile fernzugriff@192.168.24.114:~/todo-app/
 ```
 
 > **Hinweis:** Schlägt `git clone` mit einem SSL-/Zertifikatsfehler fehl, ist
-> meist die Systemzeit falsch (siehe Schritt 1.3).
+> meist die Systemzeit falsch (siehe Schritt 2.3).
 
 ---
 
-## 6. Container-Image bauen
+## 7. Container-Image bauen
 
 Das Dockerfile basiert auf einem schlanken Alpine-Python-Image, installiert
 Flask und kopiert die Anwendung in den Container:
@@ -311,7 +364,7 @@ sudo docker image build -t webapp .
 
 ---
 
-## 7. Container starten
+## 8. Container starten
 
 ```bash
 sudo docker run -p 5000:5000 -d --restart unless-stopped --name todo-app webapp
@@ -339,7 +392,7 @@ http://192.168.24.114:5000/todo-list
 
 ---
 
-## 8. Neustart-Test
+## 9. Neustart-Test
 
 Alle Einstellungen müssen einen Neustart überstehen. Test:
 
@@ -389,7 +442,7 @@ erreichbar.
 
 ---
 
-## 9. Container im Betrieb verwalten
+## 10. Container im Betrieb verwalten
 
 Sollte `docker` ohne Gruppenmitgliedschaft genutzt werden, ist den folgenden
 Befehlen jeweils `sudo` voranzustellen.
@@ -402,7 +455,7 @@ docker ps -a
 ```
 
 **Container steuern** — der Name `todo-app` stammt aus dem `--name`-Flag beim
-Start (Schritt 7):
+Start (Schritt 8):
 
 ```bash
 docker stop todo-app      # anhalten
