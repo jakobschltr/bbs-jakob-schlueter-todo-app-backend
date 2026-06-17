@@ -1,4 +1,3 @@
-
 """
 Example script showing how to represent todo lists and todo entries in Python
 data structures and how to implement endpoint for a REST API with Flask.
@@ -25,6 +24,7 @@ todo_3_id = str(uuid.uuid4())
 todo_4_id = str(uuid.uuid4())
 
 # define internal data structures with example data (aligned with OpenAPI TodoList / TodoEntry)
+# Hinweis: Die Daten liegen nur im Arbeitsspeicher und gehen bei jedem Neustart verloren.
 todo_lists = [
     {'id': todo_list_1_id, 'name': 'Einkaufsliste'},
     {'id': todo_list_2_id, 'name': 'Arbeit'},
@@ -38,6 +38,7 @@ todos = [
 ]
 
 
+# Hilfsfunktion: Liste anhand ihrer ID finden (oder None)
 def _list_by_id(list_id):
     for item in todo_lists:
         if str(item['id']) == str(list_id):
@@ -45,6 +46,7 @@ def _list_by_id(list_id):
     return None
 
 
+# Hilfsfunktion: Eintrag anhand seiner ID finden (oder None)
 def _entry_by_id(entry_id):
     for item in todos:
         if str(item['id']) == str(entry_id):
@@ -52,11 +54,13 @@ def _entry_by_id(entry_id):
     return None
 
 
+# Hilfsfunktion: alle Einträge zurückgeben, die zu einer Liste gehören
 def _entries_json_for_list(list_id):
     return [entry for entry in todos if str(entry['list_id']) == str(list_id)]
 
 
 # add some headers to allow cross origin access to the API on this server, necessary for using preview in Swagger Editor!
+# CORS-Header: erlaubt dem Frontend (andere Domain) den Zugriff auf die API
 @app.after_request
 def apply_cors_header(response):
     response.headers['Access-Control-Allow-Origin'] = '*'
@@ -72,10 +76,12 @@ def handle_list(list_id):
     if not list_item:
         return jsonify({'message': 'Invalid list id'}), 404
 
+    # GET: alle Einträge dieser Liste zurückgeben
     if request.method == 'GET':
         print('Returning todo list...')
         return jsonify(_entries_json_for_list(list_id))
 
+    # DELETE: Liste samt zugehöriger Einträge löschen
     if request.method == 'DELETE':
         print('Deleting todo list...')
         global todos
@@ -83,9 +89,11 @@ def handle_list(list_id):
         todo_lists.remove(list_item)
         return jsonify({'message': 'List was deleted'}), 204
 
+    # POST: neuen Eintrag zu dieser Liste hinzufügen
     if request.method == 'POST':
         body = request.get_json(force=True) or {}
         name = body.get('name')
+        # Validierung: 'name' ist Pflicht und muss ein String sein
         if not name or not isinstance(name, str):
             return jsonify({'name': body.get('name'), 'description': body.get('description')}), 406
         description = body.get('description', '')
@@ -113,6 +121,7 @@ def add_new_list():
     data = request.get_json(force=True) or {}
     print('Got new list to be added: {}'.format(data))
     name = data.get("name")
+    # Validierung: 'name' ist Pflicht und muss ein String sein
     if not name or not isinstance(name, str):
         return jsonify({"name": data.get("name", "")}), 406
     # ID nur serverseitig – keine vom Client übergebene id wird übernommen.
@@ -121,16 +130,19 @@ def add_new_list():
     return jsonify(new_list), 201
 
 
+# Endpunkt zum Ändern (PATCH) oder Löschen (DELETE) eines einzelnen Eintrags
 @app.route('/entry/<entry_id>', methods=['PATCH', 'DELETE'])
 def handle_entry(entry_id):
     entry = _entry_by_id(entry_id)
     if not entry:
         return jsonify({'message': 'Invalid entry id'}), 404
 
+    # DELETE: Eintrag entfernen
     if request.method == 'DELETE':
         todos.remove(entry)
         return jsonify({'message': 'Entry deleted'}), 204
 
+    # PATCH: nur die mitgeschickten Felder aktualisieren
     body = request.get_json(force=True) or {}
     if not isinstance(body, dict):
         return jsonify({}), 406
@@ -152,5 +164,6 @@ def handle_entry(entry_id):
 
 if __name__ == '__main__':
     # start Flask server
+    # host=0.0.0.0 -> von außen erreichbar, Port 5000
     app.debug = True
     app.run(host='0.0.0.0', port=5000)
