@@ -12,6 +12,7 @@ erfolgt **per SSH** von einem anderen Rechner aus (siehe Schritt 1).
 ├── app.py                              # Flask-Implementierung der REST-API
 ├── todolistenverwaltung_openapi.yaml   # OpenAPI-Spezifikation
 ├── Dockerfile                          # Container-Definition
+├── Caddyfile                           # Reverse-Proxy-Konfig (Zusatzaufgabe 2)
 └── README.md                           # Diese Anleitung
 ```
 
@@ -142,7 +143,7 @@ sudo nmcli connection up "netplan-eth0"
 ```
 
 > **Hinweis:** Da sich die IP-Adresse ändert, **bricht die aktuelle SSH-Sitzung
-> hier ab**. Anschließend unter der neuen, statischen IP neu verbinden:
+> hier ab**. Anschließend unter der neuen, statischen IP neu verbinden. Bei Problemen ggf. den RaspberryPi kurz vom Strom trennen zum neustarten.
 >
 > ```bash
 > ssh pi@192.168.24.114
@@ -151,7 +152,7 @@ sudo nmcli connection up "netplan-eth0"
 ### 2.3 Systemzeit setzen (wichtig beim Raspberry Pi 3)
 
 Der Raspberry Pi 3 besitzt **keine batteriegepufferte Echtzeituhr (RTC)** — in
-`timedatectl` erscheint `RTC time: n/a`. Nach dem Einschalten startet er daher mit
+`timedatectl` steckt meist ein bereits längst vergangenes Datum. Nach dem Einschalten startet er daher mit
 einer veralteten Uhrzeit. Eine falsche Systemzeit blockiert die weiteren Schritte:
 
 - `sudo apt update` scheitert an der Signaturprüfung:
@@ -167,8 +168,7 @@ timedatectl
 ```
 
 Steht dort `System clock synchronized: no`, muss die Uhr korrigiert werden.
-In unserem Schulnetz war **keine automatische NTP-Synchronisation möglich** (kein
-ausgehender Internetzugang), daher wird die Zeit **manuell** gesetzt.
+Für die einfachheit wird daher die Zeit **manuell** gesetzt.
 
 **Wichtig:** Solange NTP aktiv ist, lässt sich die Zeit nicht manuell setzen
 (`Failed to set time: Automatic time synchronization is enabled`). Deshalb zuerst
@@ -186,16 +186,16 @@ im Datum und Doppelpunkten in der Uhrzeit):
 sudo date -s "2026-06-16 12:00:00"
 ```
 
+> **Hinweis:** Die im Befehl angegebene Uhrzeit ist nur ein Beispiel — hier die
+> **tatsächliche aktuelle Uhrzeit und Datum** eintragen. Die Zeit muss nicht
+> sekundengenau sein, aber das aktuelle Datum ist entscheidend, damit die
+> Signatur- und Zertifikatsprüfungen funktionieren.
+
 Anschließend prüfen:
 
 ```bash
 date
 ```
-
-> **Hinweis:** Die im Befehl angegebene Uhrzeit ist nur ein Beispiel — hier die
-> **tatsächliche aktuelle Uhrzeit und Datum** eintragen. Die Zeit muss nicht
-> sekundengenau sein, aber das aktuelle Datum ist entscheidend, damit die
-> Signatur- und Zertifikatsprüfungen funktionieren.
 
 > **Hinweis:** Da der Pi 3 die Zeit über einen Neustart **nicht hält**, muss sie
 > nach jedem Boot erneut gesetzt werden, bevor `apt`, `git clone` oder
@@ -250,9 +250,6 @@ echo "AllowUsers fernzugriff" | sudo tee -a /etc/ssh/sshd_config
 sudo systemctl reload ssh
 ```
 
-- "tee" -> Weitergabe der Eingabe an eine Datei
-- "-a" -> Anhängen der Eingabe an die Datei und nicht überschreiben
-
 Ab jetzt ist die Administration nur noch über `fernzugriff` möglich. Die aktuelle
 `pi`-Sitzung beenden und unter dem neuen Benutzer neu verbinden:
 
@@ -288,6 +285,12 @@ Installation testen:
 ```bash
 sudo docker run hello-world
 ```
+
+Erwartete Ausgabe
+```
+Hello from Docker!
+```
+
 
 Optional: Benutzer zur `docker`-Gruppe hinzufügen, um `docker` ohne `sudo`
 auszuführen:
@@ -333,28 +336,14 @@ scp app.py Dockerfile fernzugriff@192.168.24.114:~/todo-app/
 
 > **Hinweis:** Schlägt `git clone` mit einem SSL-/Zertifikatsfehler fehl, ist
 > meist die Systemzeit falsch (siehe Schritt 2.3).
-
+> **Hinweis** bei Kopie über `scp` und einrichtung des Caddy Reverse Proxy
+> muss die Cadyfile auch übertragen werden oder auf dem System erstellen werden
 ---
 
 ## 7. Container-Image bauen
 
 Das Dockerfile basiert auf einem schlanken Alpine-Python-Image, installiert
 Flask und kopiert die Anwendung in den Container:
-
-```dockerfile
-FROM python:3.11-alpine
-
-WORKDIR /app
-
-RUN pip install flask==3.1.3
-
-COPY app.py /app
-
-EXPOSE 5000
-
-ENTRYPOINT [ "python" ]
-CMD ["app.py"]
-```
 
 Image bauen (im Projektverzeichnis ausführen):
 
@@ -435,11 +424,6 @@ Erwartete Ausgabe (die drei vordefinierten Beispiellisten aus `app.py`):
 ]
 ```
 
-Antwortet der Server mit diesem JSON, läuft die Web-App im Container korrekt.
-Die `id`-Werte werden bei jedem Containerstart neu generiert und weichen daher
-ab. Vom Netzwerk aus ist die API unter `http://192.168.24.114:5000/todo-list`
-erreichbar.
-
 ---
 
 ## 10. Container im Betrieb verwalten
@@ -481,6 +465,144 @@ docker rmi webapp         # Image löschen
 
 ---
 
+## Zusatzaufgabe 1: Firewall mit ufw
+
+Den Server nach dem **Whitelist-Prinzip** absichern: standardmäßig wird jede
+eingehende Verbindung blockiert, nur explizit benötigte Ports werden erlaubt.
+
+Installation und Grundregeln:
+
+```bash
+sudo apt update
+sudo apt install -y ufw
+
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+```
+
+Benötigte Ports freigeben — SSH (22) für die Administration und die Todo-API (5000):
+
+```bash
+sudo ufw allow 22/tcp      # SSH
+sudo ufw allow 5000/tcp    # Python Server
+```
+
+> **Hinweis:** Port 5000 ist durch Docker ohnehin von außen erreichbar — Docker
+> schreibt eigene `iptables`-Regeln und **umgeht damit ufw** (Details siehe
+> „Docker und ufw" unten). Die explizite ufw-Regel dient hier der Vollständigkeit
+> der Whitelist.
+
+> **Hinweis (für Zusatzaufgabe 2):** Wird der Reverse-Proxy mit Caddy eingerichtet,
+> zusätzlich Port 80 freigeben:
+>
+> ```bash
+> sudo ufw allow 80/tcp
+> ```
+
+Firewall aktivieren und Status prüfen:
+
+```bash
+sudo ufw enable            # Abfrage mit Y bestätigen
+sudo ufw status verbose
+```
+
+Erwartete Ausgabe:
+
+```
+Status: active
+Default: deny (incoming), allow (outgoing)
+To                         Action      From
+--                         ------      ----
+22/tcp                     ALLOW IN    Anywhere
+5000/tcp                   ALLOW IN    Anywhere
+```
+
+> **Docker und ufw:** Docker schreibt eigene `iptables`-Regeln und umgeht damit
+> ufw — ein per Docker veröffentlichter Port (hier `5000`) ist von außen
+> erreichbar, auch wenn ufw ihn nicht erlaubt. Soll ufw die volle Kontrolle
+> behalten, gibt es zwei Wege: entweder die App nur an die Loopback-Adresse binden
+> (`-p 127.0.0.1:5000:5000`, siehe Zusatzaufgabe 2), oder in
+> `/etc/docker/daemon.json` den Eintrag `{ "iptables": false }` ergänzen und Docker
+> mit `sudo systemctl restart docker` neu starten (vorher die benötigten Ports in
+> ufw freigeben).
+
+---
+
+## Zusatzaufgabe 2: Reverse-Proxy mit Caddy
+
+Ein Reverse-Proxy nimmt Anfragen auf dem Standard-Webport **80** entgegen und
+leitet sie intern an die Todo-App auf Port `5000` weiter. Der Zugriff erfolgt
+dann ohne Portangabe über `http://192.168.24.114`.
+
+Die Datei `Caddyfile` aus dem Projektverzeichnis
+
+```
+:80 {
+    reverse_proxy localhost:5000
+}
+```
+
+Damit der Zugriff von außen **ausschließlich über den Proxy** läuft, die App so
+starten, dass ihr Port nur lokal gebunden ist (`127.0.0.1`) — dann ist Port 5000
+von außen nicht direkt erreichbar:
+
+```bash
+sudo docker rm -f todo-app
+sudo docker run -p 127.0.0.1:5000:5000 -d --restart unless-stopped --name todo-app webapp
+```
+
+Caddy als Container starten, aus dem Arbeitsverzeichnis. Mit `--network host` bindet Caddy Port 80 direkt am
+Host und erreicht die App über `localhost:5000`:
+
+```bash
+sudo docker run -d --name caddy --network host --restart unless-stopped \
+  -v $(pwd)/Caddyfile:/etc/caddy/Caddyfile \
+  caddy
+```
+
+Test (lokal und vom Netzwerk):
+
+```bash
+curl http://localhost/todo-list
+curl http://192.168.24.114/todo-list
+```
+
+In der Firewall (Zusatzaufgabe 1) muss Port `80` freigegeben sein. Da die App nun
+nur noch lokal lauscht, ist die Freigabe von Port `5000` nicht mehr nötig.
+
+---
+
+## Zusatzaufgabe 3: Server-Monitoring mit Grafana Cloud
+
+Den Raspberry Pi mit **Grafana Cloud** überwachen (CPU, RAM, Disk, Netzwerk).
+
+1. Unter [grafana.com](https://grafana.com/) für **Grafana Cloud** registrieren 
+   und als Region **EU** wählen.
+2. Im Portal die **Linux-Integration** öffnen (Getting-Started → „Monitor my OS"
+   bzw. „Linux Server").
+3. Konfiguration für den Raspberry Pi 3 (64-bit OS): Architektur `Arm64`,
+   Plattform `Debian`. Einen Token-Namen festlegen.
+4. Grafana erzeugt daraus einen fertigen Installationsbefehl (mit API-Key und
+   Endpoint). Diesen per SSH auf dem Pi ausführen — er installiert den
+   **Grafana Alloy Agent**, der alle Informationen sammelt und an die Grafana Cloud sendet.
+   Den Befehl **nicht ins Repository committen** (enthält einen privaten API-Key).
+5. Im Portal auf **„Test Connection"** klicken; bei Erfolg erscheint der Pi als
+   Datenquelle. Anschließend ein vorkonfiguriertes Dashboard (z. B. „Linux Node /
+   overview") auswählen.
+
+Nach erfolgreicher Einrichtung zeigt das Linux-Node-Dashboard die Live-Metriken
+des Servers — Uptime, CPU-Auslastung, Speicher- und Festplattennutzung:
+
+![Grafana Linux-Node-Dashboard mit CPU-, Speicher- und Disk-Metriken](grafana-dashboard.png)
+
+Agent-Status auf dem Pi prüfen:
+
+```bash
+sudo systemctl status alloy
+```
+
+---
+
 ## Übersicht
 
 
@@ -503,7 +625,6 @@ docker rmi webapp         # Image löschen
 | Statische IP       | `192.168.24.114/24` | frei wählbar im Subnetz           |
 | Gateway            | `192.168.24.254`    | `ip route \| grep default`        |
 | DNS                | `192.168.24.254`    | `nmcli dev show eth0 \| grep DNS` |
-
 
 ---
 
