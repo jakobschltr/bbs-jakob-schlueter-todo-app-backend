@@ -32,6 +32,13 @@ Schnittstelle ist in `todolistenverwaltung_openapi.yaml` beschrieben (OpenAPI). 
 **Frontend** läuft als Web-App auf Vercel und bietet die Oberfläche für
 Todo-Sammlungen und Listen (Link siehe oben).
 
+> **Hinweis zum Frontend-Zugriff:** Da das Frontend per HTTPS auf Vercel läuft,
+> das Backend aber unter einer lokalen IP (`192.168.24.114:5000`) erreichbar ist,
+> fragt der Browser beim ersten Aufruf nach der Erlaubnis, auf das lokale
+> Netzwerk zuzugreifen („Auf andere Apps und Dienste auf diesem Gerät
+> zugreifen"). Diese Abfrage muss mit **Zulassen** bestätigt werden, sonst kann
+> das Frontend die API nicht erreichen.
+
 ---
 
 ## 1. Statische IP-Adresse konfigurieren
@@ -97,6 +104,59 @@ sudo nmcli connection up "netplan-eth0"
 > Hinweis: Bei aktiver SSH-Verbindung bricht die Sitzung an dieser Stelle ab,
 > da sich die IP-Adresse ändert. Danach unter der neuen Adresse neu verbinden.
 
+### 1.3 Systemzeit setzen (wichtig beim Raspberry Pi 3)
+
+Der Raspberry Pi 3 besitzt **keine batteriegepufferte Echtzeituhr (RTC)** — in
+`timedatectl` erscheint `RTC time: n/a`. Nach dem Einschalten startet er daher mit
+einer veralteten Uhrzeit. Eine falsche Systemzeit blockiert die weiteren Schritte:
+
+- `sudo apt update` scheitert an der Signaturprüfung:
+  `Sub-process /usr/bin/sqv returned an error code (1) ... Not live until …`
+- Der Image-Bau (`docker image build`) bricht beim Laden des Basis-Images ab:
+  `tls: failed to verify certificate: x509: certificate has expired or is not yet
+  valid: current time … is before …`
+
+Zeit und Status prüfen:
+
+```bash
+timedatectl
+```
+
+Steht dort `System clock synchronized: no`, muss die Uhr korrigiert werden.
+In unserem Schulnetz war **keine automatische NTP-Synchronisation möglich** (kein
+ausgehender Internetzugang), daher wird die Zeit **manuell** gesetzt.
+
+**Wichtig:** Solange NTP aktiv ist, lässt sich die Zeit nicht manuell setzen
+(`Failed to set time: Automatic time synchronization is enabled`). Deshalb zuerst
+NTP deaktivieren, dann die Zeit setzen:
+
+```bash
+sudo timedatectl set-ntp false
+sudo timedatectl set-time "2026-06-16 12:00:00"
+```
+
+Alternativ geht auch `date` (gleiches Format beachten — Trennung mit Bindestrichen
+im Datum und Doppelpunkten in der Uhrzeit):
+
+```bash
+sudo date -s "2026-06-16 12:00:00"
+```
+
+Anschließend prüfen:
+
+```bash
+date
+```
+
+> **Hinweis:** Die im Befehl angegebene Uhrzeit ist nur ein Beispiel — hier die
+> **tatsächliche aktuelle Uhrzeit und Datum** eintragen. Die Zeit muss nicht
+> sekundengenau sein, aber das aktuelle Datum ist entscheidend, damit die
+> Signatur- und Zertifikatsprüfungen funktionieren.
+
+> **Hinweis:** Da der Pi 3 die Zeit über einen Neustart **nicht hält**, muss sie
+> nach jedem Boot erneut gesetzt werden, bevor `apt`, `git clone` oder
+> `docker build` funktionieren.
+
 ---
 
 ## 2. Benutzer anlegen
@@ -156,6 +216,10 @@ ssh fernzugriff@192.168.24.114
 
 ## 4. Docker installieren
 
+> **Vor der Installation:** Systemzeit prüfen (siehe Schritt 1.3) — bei falscher
+> Uhr scheitert `apt update` an der Signaturprüfung (`Not live until …`) und es
+> lassen sich keine Pakete installieren.
+
 Installation über die Paketverwaltung:
 
 ```bash
@@ -187,18 +251,35 @@ sudo usermod -aG docker fernzugriff
 
 ## 5. Projektdateien auf den Server übertragen
 
-Per Git (Git ggf. zuerst mit `sudo apt install -y git` installieren):
+Zuerst prüfen, ob Git bereits installiert ist:
+
+```bash
+git --version
+```
+
+Wird eine Versionsnummer ausgegeben, ist Git vorhanden und dieser Schritt kann
+übersprungen werden. Erscheint stattdessen `command not found`, Git nachinstallieren:
+
+```bash
+sudo apt update
+sudo apt install -y git
+```
+
+Anschließend das Backend-Repository klonen:
 
 ```bash
 git clone https://github.com/jakobschltr/bbs-jakob-schlueter-todo-app-backend.git
 cd bbs-jakob-schlueter-todo-app
 ```
 
-Alternativ per `scp` vom eigenen Rechner aus:
+Alternativ per `scp` vom eigenen Rechner aus (ohne Git):
 
 ```bash
 scp app.py Dockerfile fernzugriff@192.168.24.114:~/todo-app/
 ```
+
+> **Hinweis:** Schlägt `git clone` mit einem SSL-/Zertifikatsfehler fehl, ist
+> meist die Systemzeit falsch (siehe Schritt 1.3).
 
 ---
 
